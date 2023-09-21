@@ -47,3 +47,5 @@ Usage of this pipeline may require additional components to determine the date r
 ## Pipeline Orchestration
 This data pipeline can be orchestrated by a variety of tools that support containerized components, but has been developed and tested with [Kubeflow Pipelines](https://www.kubeflow.org/), which is based on [Argo Workflows](https://argoproj.github.io/argo-workflows/).
 
+## Contributing
+Browser automations often break due to changes in the websites they act on. Contributions that help to quickly flag and/or address such issues are appreciated. Dependency updates, documentation improvements, logging improvements, and additions of tests will enhance the usability and reliabiltiy of this project.
