@@ -1,7 +1,5 @@
 FROM python:3.9-bullseye
 
-LABEL version=1.0
-
 USER root
 
 # Specify versions of Firefox and geckodriver

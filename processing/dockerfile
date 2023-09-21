@@ -1,7 +1,5 @@
 FROM r-base:4.2.2
 
-LABEL version=1.0
-
 WORKDIR /home/docker/
 
 # Library initialization using renv
