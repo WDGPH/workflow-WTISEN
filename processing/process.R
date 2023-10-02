@@ -5,16 +5,15 @@ cat(
 
 cat("\nWorking directory:", getwd(),"\n")
 
-# Load libraries
-cat("\nActivating renv\n")
-source("renv/activate.R")
+# Disable package masking warnings for production
+options(conflicts.policy = list('warn' = F))
 
+# Load libraries
 library(readr)
 library(tidyr)
 library(dplyr)
 library(stringr)
 library(lubridate)
-library(arrow)
 
 # Script arguments
 cat(
@@ -107,7 +106,7 @@ postalcode_cleaner = function(x){
   return(x)
 }
 
-date_bounds = lubridate::interval(as.POSIXct('2008-01-01'), Sys.Date())
+date_bounds = interval(as.POSIXct('2008-01-01'), Sys.Date())
 
 # Extract CSV content
 wtisen_data = read_csv(
@@ -163,7 +162,7 @@ cat("\nData loaded and processed")
 cat("\nDimensions: ", dim(wtisen_data)[1], " x ", dim(wtisen_data)[2], "\n", sep = "")
 cat("\nFields:", names(wtisen_data), sep = "\n-")
 
-write_parquet(wtisen_data, wtisen_output)
+arrow::write_parquet(wtisen_data, wtisen_output)
 cat("\nPre-processed data output to: ", wtisen_output, sep = "")
 
 cat("\n\nDone!")

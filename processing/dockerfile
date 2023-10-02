@@ -5,7 +5,7 @@ WORKDIR /home/docker/
 # Library initialization using renv
 RUN Rscript --vanilla -e "install.packages('renv', repos='https://mirror.csclub.uwaterloo.ca/CRAN/')"
 COPY renv.lock .
-RUN Rscript --vanilla -e "renv::activate(); renv::restore(prompt = F)"
+RUN Rscript --vanilla -e "renv::restore(prompt = F)"
 
 # Data processing code
 COPY process.R /home/docker/
