@@ -142,11 +142,11 @@ def main(url, phu, start, end, output):
 
   # Check for login success
   try:
-      error_message = browser.find_element(By.ID, "errorText").text
-      raise RuntimeError(f"Login failed with error: {error_message}")
+    error_message = browser.find_element(By.ID, "errorText").text
+    raise RuntimeError(f"Login failed with error: {error_message}")
   except NoSuchElementException:
-      # No error message found, proceed
-      pass
+    # No error message found, proceed
+    pass
 
   # Download data
   ## Transfer cookies from Selenium session to new requests session

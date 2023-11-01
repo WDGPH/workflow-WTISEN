@@ -6,7 +6,7 @@ cat(
 cat("\nWorking directory:", getwd(),"\n")
 
 # Disable package masking warnings for production
-options(conflicts.policy = list('warn' = F))
+options(conflicts.policy = list("warn" = F))
 
 # Load libraries
 library(readr)
@@ -30,20 +30,22 @@ wtisen_input = args[1]
 wtisen_output = args[2]
 
 # Extract top content of CSV for logging
+cat("\nFile info from PHO WTISEN:\n")
 read_csv(
   file           = wtisen_input,
   skip           = 1,
   n_max          = 1,
   col_names      = F,
   col_select     = 2,
-  show_col_types = F) %>%
-  pull(1) %>%
+  show_col_types = F) |>
+  pull(1) |>
   str_replace_all(c(
     "--"    = "\n",
     " {2,}" = " ",
     "\r"    = "",
-    "\n "   = "\n")) %>%
-  cat("\nFile info from PHO WTISEN:", ., sep = "\n")
+    "\n "   = "\n")) |>
+cat()
+    
 
 # Utility function
 # Postal code cleaner
@@ -106,7 +108,7 @@ postalcode_cleaner = function(x){
   return(x)
 }
 
-date_bounds = interval(as.POSIXct('2008-01-01'), Sys.Date())
+date_bounds = interval(as.POSIXct("2008-01-01"), Sys.Date())
 
 # Extract CSV content
 wtisen_data = read_csv(
@@ -135,8 +137,8 @@ wtisen_data = read_csv(
     E_COLI               = col_character(),
     DATE_RELEASED        = col_datetime(format = "%Y-%m-%d %H:%M:%S"),
     DATE_REPORTED        = col_datetime(format = "%Y-%m-%d %H:%M:%S"),
-    REQ_LEGIBLE          = col_character())) %>%
-  rename_with(.fn = ~str_remove_all(str_to_upper(.x), "^SRC_|^SUB_|2$")) %>%
+    REQ_LEGIBLE          = col_character())) |>
+  rename_with(.fn = \(x) str_remove_all(str_to_upper(x), "^SRC_|^SUB_|2$")) |>
   mutate(
     across(
       .cols = c(
@@ -144,18 +146,18 @@ wtisen_data = read_csv(
         "CITY",
         "MUNICIPALITY",
         "COUNTY"),
-      .fns = ~str_replace(.x, "_", " ")),
+      .fns = \(x) str_replace(x, "_", " ")),
     across(
       .cols = where(is.character),
       .fns  = str_trim),
     across(
       .cols = starts_with("DATE"),
-      .fns  = ~force_tz(.x, tz = "America/Toronto")),
+      .fns  = \(x) force_tz(x, tz = "America/Toronto")),
     across(
       .cols = starts_with("DATE"),
-      .fns  = ~if_else(.x %within% date_bounds, .x, NA_POSIXct_)),
+      .fns  = \(x) if_else(x %within% date_bounds, x, NA_POSIXct_)),
     POSTAL = postalcode_cleaner(POSTAL),
-    REQ_LEGIBLE = str_detect(REQ_LEGIBLE, "^y|Y$")) %>%
+    REQ_LEGIBLE = str_detect(REQ_LEGIBLE, "^y|Y$")) |>
   relocate("BARCODE", "REQ_LEGIBLE", starts_with("DATE"))
 
 cat("\nData loaded and processed")
