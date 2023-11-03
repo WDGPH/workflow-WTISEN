@@ -1,10 +1,12 @@
 # WTISEN Data Pipeline
 
 ## Introduction
-These containers are used as part of a data pipeline to automatically retrieve and process data from Public Health Ontario's (PHO) Water Testing Information System Electronic Notification (WTISEN). Data can be retrieved for up to 3 years at a time.
+These containers are used as part of a data pipeline to automatically retrieve and process data from Public Health Ontario's (PHO) Water Testing Information System Electronic Notification (WTISEN). Containerization of these data pipeline components offers environment isolation and reproducibility. Below follows a description and basic usage of each container. 
+
+Container images are built by Github actions, and pushed to Github's container registry. You can find up-to-date built images [here](https://github.com/orgs/WDGPH/packages?repo_name=workflow-WTISEN).
 
 ## Retrieval Container
-This container utilizes [Selenium](https://www.selenium.dev/) to automate browser authentication through PHO's login portal to WTISEN. Once authenticated, the browser session is passed to Python's [Request](https://requests.readthedocs.io/en/latest/) library to download a report with the parameters specified to the container. The retrieved file is in CSV format. 
+This container utilizes [Selenium](https://www.selenium.dev/) to automate browser authentication through PHO's login portal to WTISEN. Once authenticated, the browser session is passed to Python's [Requests](https://requests.readthedocs.io/en/latest/) library to download a report with the parameters specified to the container. The retrieved file is in CSV format. Data can be retrieved for up to 3 years at a time.
 
 To use, `WTISEN_USER` and `WTISEN_PASSWORD` environment variables must be set for the container (login email and password to WTISEN respectively). It is strongly suggested that secure key vault is utilized for this process and that credentials are rotated frequently. Additionally, the following arguments are required:
 
@@ -48,4 +50,4 @@ Usage of this pipeline may require additional components to determine the date r
 This data pipeline can be orchestrated by a variety of tools that support containerized components, but has been developed and tested with [Kubeflow Pipelines](https://www.kubeflow.org/), which is based on [Argo Workflows](https://argoproj.github.io/argo-workflows/).
 
 ## Contributing
-Browser automations often break due to changes in the websites they act on. Contributions that help to quickly flag and/or address such issues are appreciated. Dependency updates, documentation improvements, logging improvements, and additions of tests will enhance the usability and reliabiltiy of this project.
+Browser automations often break due to changes in the websites they act on. Contributions that help to quickly flag and/or address such issues are appreciated. Dependency updates, documentation improvements, logging improvements, and additions of tests will enhance the usability and reliability of this project.
