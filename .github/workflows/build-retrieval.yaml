@@ -1,0 +1,57 @@
+name: Build Retrieval Image
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - '*'
+    paths:
+      - 'retrieval/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'retrieval/**'
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata (tags, labels) for retrieval container
+      id: meta-retrieval
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ github.repository }}/retrieval
+        flavor: latest=false
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix=main-
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+
+    - name: Build and push retrieval container image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./retrieval
+        file: ./retrieval/dockerfile
+        push: true
+        tags: ${{ steps.meta-retrieval.outputs.tags }}
