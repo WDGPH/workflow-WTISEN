@@ -1,51 +1,56 @@
-cat(
-  "WTISEN Result Pre-processing", 
-  "############################",
-  sep = "\n")
+##############
+# Parameters #
+##############
 
-cat("\nWorking directory:", getwd(),"\n")
+library(optparse)
+
+logger = function(..., sep = ""){
+  cat("\n", format(Sys.time(), format = '%Y-%m-%d %H:%M:%S'), " ", ..., sep = sep)}
+
+parser = OptionParser(
+  option_list = list(
+    
+    make_option(
+      opt_str = c("-i", "--input"),
+      help = "Input file, in CSV format.",
+      type = "character",
+      default = ""),
+
+    make_option(
+      opt_str = c("-o", "--output"),
+      help = "Output file, in CSV format.",
+      type = "character",
+      default = ""),
+    
+    make_option(
+      opt_str = c("-v", "--verbose"),
+      help = "Print additional diagnostic information.",
+      action = "store_true",
+      default = FALSE)
+    )
+  )
+
+# Parse arguments
+args = parse_args(parser)
+
+# Verbose argument
+if(args$verbose){
+  logger("The following arguments have been passed to R:",
+    commandArgs(trailingOnly = TRUE))
+  }
+
+###################
+# Data processing #
+###################
 
 # Disable package masking warnings for production
 options(conflicts.policy = list("warn" = F))
 
-# Load libraries
 library(readr)
 library(tidyr)
 library(dplyr)
 library(stringr)
 library(lubridate)
-
-# Script arguments
-cat(
-  "\n\nThis script requires 2 arguments:",
-  "The path of the CSV export from PHO WTISEN",
-  "The path of the processed parquet output", sep = "\n-"
-)
-
-args = commandArgs(trailingOnly = T)
-
-cat("\nArguments detected:", args, sep = "\n-")
-
-wtisen_input = args[1]
-wtisen_output = args[2]
-
-# Extract top content of CSV for logging
-cat("\nFile info from PHO WTISEN:\n")
-read_csv(
-  file           = wtisen_input,
-  skip           = 1,
-  n_max          = 1,
-  col_names      = F,
-  col_select     = 2,
-  show_col_types = F) |>
-  pull(1) |>
-  str_replace_all(c(
-    "--"    = "\n",
-    " {2,}" = " ",
-    "\r"    = "",
-    "\n "   = "\n")) |>
-cat()
-    
 
 # Utility function
 # Postal code cleaner
@@ -108,37 +113,45 @@ postalcode_cleaner = function(x){
   return(x)
 }
 
-date_bounds = interval(as.POSIXct("2008-01-01"), Sys.Date())
+if(args$input != ""){
+  logger("Reading unprocessed CSV file input from: ", args$input)
+} else {
+  logger("No input file specified, ending script")
+  stop("No input file specified")
+}
 
 # Extract CSV content
 wtisen_data = read_csv(
-  file = wtisen_input,
-  skip = 3,
-  col_types = cols_only(
-    DATE_Collected       = col_datetime(format = "%m/%d/%Y %I:%M:%S %p"),
-    DATE_RECEIVED        = col_datetime(format = "%m/%d/%Y %I:%M:%S %p"),
-    Barcode              = col_character(),
-    Laboratory           = col_character(),
-    Sub_Phone            = col_character(),
-    Sub_Alt_Phone        = col_character(),
-    Sub_First_Name2      = col_character(),
-    Sub_Last_Name2       = col_character(),
-    SRC_ADDRESS          = col_character(),
-    SRC_LOT_NUM          = col_character(),
-    SRC_CONCESSION       = col_character(),
-    SRC_CITY             = col_character(),
-    SRC_MUNICIPALITY     = col_character(),
-    SRC_COUNTY           = col_character(),
-    SRC_EMERGENCY_LOC_NO = col_character(),
-    SRC_POSTAL           = col_character(),
-    ENTRY                = col_integer(),
-    FORMATTED_ENTRY      = col_character(),
-    TOTAL_COLIFORM       = col_character(),
-    E_COLI               = col_character(),
-    DATE_RELEASED        = col_datetime(format = "%Y-%m-%d %H:%M:%S"),
-    DATE_REPORTED        = col_datetime(format = "%Y-%m-%d %H:%M:%S"),
-    REQ_LEGIBLE          = col_character())) |>
-  rename_with(.fn = \(x) str_remove_all(str_to_upper(x), "^SRC_|^SUB_|2$")) |>
+  file = args$input,
+  guess_max = 0,
+  show_col_types = FALSE) |>
+  rename_with(.fn = \(x) {x |>
+      str_to_upper() |>
+      str_remove_all("^SRC_|^SUB_|2$")}) |>
+  select(
+    BARCODE,
+    DATE_COLLECTED,
+    DATE_RECEIVED,
+    DATE_RELEASED,
+    DATE_REPORTED,
+    LABORATORY,
+    PHONE,
+    ALT_PHONE,
+    FIRST_NAME,
+    LAST_NAME,
+    ADDRESS,
+    LOT_NUM,
+    CONCESSION,
+    CITY,
+    MUNICIPALITY,
+    COUNTY,
+    EMERGENCY_LOC_NO,
+    POSTAL,
+    ENTRY,
+    FORMATTED_ENTRY,
+    TOTAL_COLIFORM,
+    E_COLI,
+    REQ_LEGIBLE) |>
   mutate(
     across(
       .cols = c(
@@ -148,23 +161,25 @@ wtisen_data = read_csv(
         "COUNTY"),
       .fns = \(x) str_replace(x, "_", " ")),
     across(
+      .cols = starts_with("DATE_"),
+      .fns = \(x) {x |>
+          as_datetime(format = c("%m/%d/%Y %I:%M:%S %p", "%Y-%m-%d %H:%M:%S")) |>
+          force_tz(tz = "America/Toronto")}),
+    across(
       .cols = where(is.character),
-      .fns  = str_trim),
-    across(
-      .cols = starts_with("DATE"),
-      .fns  = \(x) force_tz(x, tz = "America/Toronto")),
-    across(
-      .cols = starts_with("DATE"),
-      .fns  = \(x) if_else(x %within% date_bounds, x, NA_POSIXct_)),
+      .fns  = \(x) str_trim(x)),
     POSTAL = postalcode_cleaner(POSTAL),
-    REQ_LEGIBLE = str_detect(REQ_LEGIBLE, "^y|Y$")) |>
-  relocate("BARCODE", "REQ_LEGIBLE", starts_with("DATE"))
+    ENTRY = as.integer(ENTRY),
+    REQ_LEGIBLE = str_detect(REQ_LEGIBLE, "^y|Y$"))
 
-cat("\nData loaded and processed")
-cat("\nDimensions: ", dim(wtisen_data)[1], " x ", dim(wtisen_data)[2], "\n", sep = "")
-cat("\nFields:", names(wtisen_data), sep = "\n-")
+logger("Data loaded and processed")
+logger("Dimensions: ", dim(wtisen_data)[1], " x ", dim(wtisen_data)[2])
 
-arrow::write_parquet(wtisen_data, wtisen_output)
-cat("\nPre-processed data output to: ", wtisen_output, sep = "")
+if(args$output != ""){
+  arrow::write_parquet(wtisen_data, args$output)
+  logger("Processed data output in parquet format to: ", args$output)
+} else {
+  logger("No output location specified, skipping data output") 
+}
 
-cat("\n\nDone!")
+logger("Done!")
