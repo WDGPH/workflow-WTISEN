@@ -1,12 +1,30 @@
-FROM r-base:4.2.2
+FROM rocker/r-ver:4.3.3
 
 WORKDIR /home/docker/
 
 # Library initialization using renv
-RUN Rscript --vanilla -e "install.packages('renv', repos='https://mirror.csclub.uwaterloo.ca/CRAN/')"
-COPY renv.lock .
-RUN Rscript --vanilla -e "renv::restore(prompt = F)"
+RUN Rscript --vanilla -e " \
+  options(repos = c(CRAN = 'https://cloud.r-project.org')); \
+  install.packages('renv') \
+"
 
+# Direct dependencies
+RUN Rscript --vanilla -e " \
+  renv::install( \
+    packages = c( \
+      'arrow@15.0.1', \
+      'dplyr@1.1.4', \
+      'lubridate@1.9.3', \
+      'optparse@1.7.5', \
+      'readr@2.1.5', \
+      'renv@1.0.7', \
+      'stringr@1.5.1', \
+      'tidyr@1.3.1' \
+    ), \
+    prompt = F, \
+    lock = T \
+  ) \
+"
 # Data processing code
 COPY process.R /home/docker/
 
