@@ -18,16 +18,20 @@ URL to access WTISEN
 Four-digit Public Health Unit ID  
 **Example**: `1234`
 
-**3. `start`**  
+**3. `report`**
+Report name, preceded in report URL by `/RSReports/` and ends with `.rdl`
+**Example**: `Water+Testing+PHU+Report.rdl`
+
+**4. `start`**  
 The start date for the records you want to retrieve in the format of `YYYY-MM-DD`  
 **Example**: `2022-01-01`
 
-**4. `end`**  
-The end date for the records you want to retrieve in the format of `YYYY-MM-DD`. Must be less than 3 years after `start`.  
+**5. `end`**  
+The end date for the records you want to retrieve in the format of `YYYY-MM-DD`
 **Example**: `2022-12-31`
 
-**5. `output`**  
-The filename where the output will be written  
+**6. `output`**  
+The filename where the output will be written in CSV format
 **Example**: `wtisen.csv`
 
 ## Processing Container

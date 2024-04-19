@@ -16,33 +16,39 @@ def parse_args():
     description='Fetches well water testing results from Public Health Ontario')
 
   parser.add_argument(
-    'url',
+    '--url',
     help = 'URL to access Public Health Ontario well water testing result portal',
+    required = True,
     type = str)
 
   parser.add_argument(
-    'report',
+    '--report',
     help = 'Report name, preceded in report URL by `/RSReports/` and ends with `.rdl`',
+    required = True,
     type = str)
 
   parser.add_argument(
-    'phu',
+    '--phu',
     help = "Public Health Unit ID (4 numeric characters)",
+    required = True,
     type = str)
 
   parser.add_argument(
-    'start',
+    '--start',
     help = "Start date for retrieved records (YYYY-MM-DD format)",
+    required = True,
     type = str)
 
   parser.add_argument(
-    'end',
+    '--end',
     help = "End date for retrieved records (YYYY-MM-DD format)",
+    required = True,
     type = str)
   
   parser.add_argument(
-    'output',
+    '--output',
     help = "Filename to write output to",
+    required = True,
     type = str)
   
   return parser.parse_args()
