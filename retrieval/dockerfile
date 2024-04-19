@@ -3,8 +3,8 @@ FROM python:3.9-bullseye
 USER root
 
 # Specify versions of Firefox and geckodriver
-ARG firefox_ver=111.0.1
-ARG geckodriver_ver=0.32.2
+ARG firefox_ver=124.0.2
+ARG geckodriver_ver=0.34.0
 
 # Update apt-get
 RUN apt-get update
@@ -39,11 +39,11 @@ RUN apt-get purge -y --auto-remove \
 # Run in headless mode
 ENV MOZ_HEADLESS=1
 
-# Upgrade pip and install selenium
-RUN python3 -m pip install --upgrade pip && pip install selenium==4.8.* requests==2.28.* --no-cache-dir 
+# Upgrade pip and install selenium, requests, and pandas
+RUN python3 -m pip install --upgrade pip && pip install selenium==4.* requests==2.* pandas==2.* --no-cache-dir 
 
 # COPY and apply permissions to python script
 COPY getdata.py ./
 RUN chmod a+x /getdata.py
 
-ENTRYPOINT ["python", "./getdata.py"]
+ENTRYPOINT ["python3", "./getdata.py"]

@@ -2,48 +2,60 @@ import os
 import logging
 import argparse
 from time import sleep
-from datetime import datetime
+from datetime import datetime, timedelta
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import NoSuchElementException
 import requests
-
+import pandas as pd
+import io
 
 # Argument parser
 def parse_args():
   parser = argparse.ArgumentParser(
-    description='Fetches well water testing results from Public Health Ontario for up to 3 years at a time')
+    description='Fetches well water testing results from Public Health Ontario')
 
   parser.add_argument(
-    'url',
-    help = "URL to access Public Health Ontario well water testing result portal",
+    '--url',
+    help = 'URL to access Public Health Ontario well water testing result portal',
+    required = True,
     type = str)
 
   parser.add_argument(
-    'phu',
+    '--report',
+    help = 'Report name, preceded in report URL by `/RSReports/` and ends with `.rdl`',
+    required = True,
+    type = str)
+
+  parser.add_argument(
+    '--phu',
     help = "Public Health Unit ID (4 numeric characters)",
+    required = True,
     type = str)
 
   parser.add_argument(
-    'start',
+    '--start',
     help = "Start date for retrieved records (YYYY-MM-DD format)",
+    required = True,
     type = str)
 
   parser.add_argument(
-    'end',
+    '--end',
     help = "End date for retrieved records (YYYY-MM-DD format)",
+    required = True,
     type = str)
   
   parser.add_argument(
-    'output',
+    '--output',
     help = "Filename to write output to",
+    required = True,
     type = str)
   
   return parser.parse_args()
 
 
 # Main function to extract and output data from PHO WTISEN
-def main(url, phu, start, end, output):
+def main(url, report, phu, start, end, output):
   
   # Check if phu is in expected format
   if not phu.isnumeric() or len(phu) != 4:
@@ -54,11 +66,10 @@ def main(url, phu, start, end, output):
   # Parse start and end dates strings into times
   start = datetime.strptime(start, "%Y-%m-%d").date()
   end = datetime.strptime(end, "%Y-%m-%d").date()
-  logging.info(f"Data requested from {start} to {end}")
-  
-  # Check that start and end dates are less than 3 years apart
-  if (end - start).days >= 365*3:
-    raise ValueError("Date range exceeds 3 years, the maximum which can be retrieved from WTISEN in a single report")
+  if start <= end:
+    logging.info(f"Data requested from {start} to {end}")
+  else:    
+    raise ValueError(f"Invalid date range provided ({start} to {end})")
   
   # Load credentials and remove environment variables
   username = os.getenv('WTISEN_USER')
@@ -77,6 +88,7 @@ def main(url, phu, start, end, output):
 
   # Start browser
   browser = webdriver.Firefox()
+  
   logging.info("Browser started")
 
   # Wait up to 30 seconds for elements to appear
@@ -165,40 +177,88 @@ def main(url, phu, start, end, output):
     session.cookies.set(cookie['name'], cookie['value'])
     
   logging.info("Cookies copied from Selenium to Requests")
-
-  ## Create a download URL using specified parameters
-  dl = url +\
-    '/_vti_bin/ReportServer?' +\
-    url +\
-    '/RSReports/Private+Water+Testing+Information+Summary+Report+-+WTISEN+-+PHU+Report.rdl&prmPHU=' +\
-    phu +\
-    '&prmSelDate=0&prmStartdate=' +\
-    start.strftime('%#m/%d/%Y') +\
-    '%2000%3A00%3A00&prmEnddate=' +\
-    end.strftime('%#m/%d/%Y') +\
-    '%2000%3A00%3A00&prmrender%3Aisnull=True&prmDuplicates=0&rs%3AParameterLanguage=&rs%3ACommand=Render&rs%3AFormat=CSV&rc%3AItemPath=Tablix4'
   
-  logging.info("Report download URL prepared")
-
-  ## Use requests session to retrieve data at URL
-  response = session.get(dl)
-  if response.status_code == 200:
-    logging.info(f"Response received with Status Code {response.status_code} in {response.elapsed.total_seconds():.2f} seconds")
-  else:
-    raise RuntimeError(f"Response received with Status Code {response.status_code}")
-
-  ## Write the response to the output file
-  with open(output, 'wb') as f:
-    f.write(response.content)
-  logging.info(f"Response written to {output}")
-
-  # Step 5: Quit the browser
+  # Quit the browser
   browser.quit()
   logging.info("Browser has quit")
+  
+  # Create intervals of max length 3 years for data download
+  date_intervals = []
+  current_start = start
+  while current_start <= end:
+    current_end = current_start + timedelta(days = 3*365)
+    if current_end > end:
+      current_end = end
+    date_intervals.append((current_start, current_end))
+    current_start = current_end + timedelta(days = 1)
+  
+  logging.info(f"Data will be downloaded in {len(date_intervals)} batches")
+
+  # Initialize df as None to support loop
+  df = None
+
+  for date_interval in date_intervals:
+    logging.info(f"Retrieving data released between {date_interval[0]} and {date_interval[1]}")
+  
+    ## Create a download URL using specified parameters
+    dl_url = ''.join([
+      url, '/_vti_bin/ReportServer?', url,
+      
+      #### Report name
+      '/RSReports/', report,
+      
+      #### Item of interest within report
+      '&rc:ItemPath=Tablix4',
+      
+      #### Report parameters - PHU Number
+      '&prmPHU=', phu,
+      
+      #### Report parameters - Start and End Dates
+      '&prmSelDate=0',
+      '&prmStartdate=', date_interval[0].strftime('%#m/%d/%Y 00:00:00'),
+      '&prmEnddate=', date_interval[1].strftime('%#m/%d/%Y 23:59:59'),
+      
+      #### Report parameters - Duplicate and null value behaviour
+      '&prmDuplicates=0',
+      '&prmrender:isnull=True',
+      
+      #### Reporting Service parameters - Formatting information
+      '&rs:ParameterLanguage=',
+      '&rs:Command=Render',
+      '&rs:Format=CSV'
+    ])
+    
+    logging.info(f"Report download URL prepared: {dl_url}")
+
+    ## Wait 10 seconds between downloads
+    sleep(10)
+
+    ## Use requests session to retrieve data at URL
+    response = session.get(dl_url)
+    
+    if response.status_code == 200:
+      logging.info(f"Response received with Status Code {response.status_code} in {response.elapsed.total_seconds():.2f} seconds")
+    else:
+      raise RuntimeError(f"Response received with Status Code {response.status_code}")
+
+    temp_df = pd.read_csv(io.StringIO(response.content.decode('utf-8')), skiprows = 3, dtype = str)
+    
+    if df is None:
+      df = temp_df
+    else:
+      df = pd.concat([df, temp_df], ignore_index = True)
+  
+  # Write the combined dataframe to a single CSV file
+  if df is not None:
+    df.to_csv(output, index = False)
+    logging.info(f"All data written to {output}")
+  else:
+    logging.warning("No data to write.")
 
 
 if __name__ == '__main__':
   logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S', level=logging.INFO)
+  
   # Parse and unpack keyword arguments
   main(**vars(parse_args()))
   logging.info("Done")
