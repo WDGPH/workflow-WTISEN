@@ -43,8 +43,8 @@ if(args$verbose){
 # Data processing #
 ###################
 
-# Disable package masking warnings for production
-options(conflicts.policy = list("warn" = F))
+# Warn of package conflicts only in verbose mode
+options(conflicts.policy = list("warn" = args$verbose))
 
 library(readr)
 library(tidyr)
