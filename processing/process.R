@@ -18,7 +18,7 @@ parser = OptionParser(
 
     make_option(
       opt_str = c("-o", "--output"),
-      help = "Output file, in CSV format.",
+      help = "Output file, in parquet format.",
       type = "character",
       default = ""),
     
