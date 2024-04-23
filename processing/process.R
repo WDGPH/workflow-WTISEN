@@ -160,14 +160,25 @@ wtisen_data = read_csv(
         "MUNICIPALITY",
         "COUNTY"),
       .fns = \(x) str_replace(x, "_", " ")),
+      
     across(
       .cols = starts_with("DATE_"),
       .fns = \(x) {x |>
           as_datetime(format = c("%m/%d/%Y %I:%M:%S %p", "%Y-%m-%d %H:%M:%S")) |>
           force_tz(tz = "America/Toronto")}),
+          
+    # Convert erroneous collection dates to NAs
+    DATE_COLLECTED = case_when(
+      # Collected >6 months before receipt
+      DATE_COLLECTED < (DATE_RECEIVED - months(6)) ~ NA_POSIXct_,
+      # Collected after lab receipt
+      DATE_COLLECTED > DATE_RECEIVED ~ NA_POSIXct_,
+      .default = DATE_COLLECTED),
+      
     across(
       .cols = where(is.character),
       .fns  = \(x) str_trim(x)),
+      
     POSTAL = postalcode_cleaner(POSTAL),
     ENTRY = as.integer(ENTRY),
     REQ_LEGIBLE = str_detect(REQ_LEGIBLE, "^y|Y$"))
