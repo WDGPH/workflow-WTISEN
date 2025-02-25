@@ -3,8 +3,8 @@ FROM python:3.9-bullseye
 USER root
 
 # Specify versions of Firefox and geckodriver
-ARG firefox_ver=124.0.2
-ARG geckodriver_ver=0.34.0
+ARG firefox_ver=135.0.1
+ARG geckodriver_ver=0.36.0
 
 # Update apt-get
 RUN apt-get update
