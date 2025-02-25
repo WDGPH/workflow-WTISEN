@@ -1,4 +1,3 @@
-import os
 import logging
 import argparse
 from time import sleep
@@ -51,12 +50,31 @@ def parse_args():
     required = True,
     type = str)
   
+  # New arguments for login credentials
+  parser.add_argument(
+    '--username',
+    help = "Path to file containing username for PHO portal",
+    required = True,
+    type = str)
+    
+  parser.add_argument(
+    '--password',
+    help = "Path to file containing password for PHO portal",
+    required = True,
+    type = str)
+  
   return parser.parse_args()
 
 
 # Main function to extract and output data from PHO WTISEN
-def main(url, report, phu, start, end, output):
+def main(url, report, phu, start, end, output, username_file, password_file):
+  # Read credentials from files
+  with open(username_file, 'r') as file:
+    username = file.read().strip()
   
+  with open(password_file, 'r') as file:
+    password = file.read().strip()
+    
   # Check if phu is in expected format
   if not phu.isnumeric() or len(phu) != 4:
     raise ValueError("PHU must be exactly 4 numeric characters.")
@@ -71,21 +89,6 @@ def main(url, report, phu, start, end, output):
   else:    
     raise ValueError(f"Invalid date range provided ({start} to {end})")
   
-  # Load credentials and remove environment variables
-  username = os.getenv('WTISEN_USER')
-  if username is not None:
-    logging.info("WTISEN_USER environment variable found")
-    os.environ.pop('WTISEN_USER', None)
-  else:
-    raise ValueError("WTISEN_USER environment variable not found.")
-    
-  password = os.getenv('WTISEN_PASSWORD')
-  if password is not None:
-    logging.info("WTISEN_PASSWORD environment variable found")
-    os.environ.pop('WTISEN_PASSWORD', None)
-  else:
-    raise ValueError("WTISEN_PASSWORD environment variable not found.")
-
   # Start browser
   browser = webdriver.Firefox()
   
