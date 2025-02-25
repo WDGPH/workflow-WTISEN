@@ -45,20 +45,20 @@ def parse_args():
     type = str)
   
   parser.add_argument(
-    '--output',
+    '--output_file',
     help = "Filename to write output to",
     required = True,
     type = str)
   
   # New arguments for login credentials
   parser.add_argument(
-    '--username',
+    '--username_file',
     help = "Path to file containing username for PHO portal",
     required = True,
     type = str)
     
   parser.add_argument(
-    '--password',
+    '--password_file',
     help = "Path to file containing password for PHO portal",
     required = True,
     type = str)
@@ -67,7 +67,7 @@ def parse_args():
 
 
 # Main function to extract and output data from PHO WTISEN
-def main(url, report, phu, start, end, output, username_file, password_file):
+def main(url, report, phu, start, end, output_file, username_file, password_file):
   # Read credentials from files
   with open(username_file, 'r') as file:
     username = file.read().strip()
@@ -253,8 +253,8 @@ def main(url, report, phu, start, end, output, username_file, password_file):
   
   # Write the combined dataframe to a single CSV file
   if df is not None:
-    df.to_csv(output, index = False)
-    logging.info(f"All data written to {output}")
+    df.to_csv(output_file, index = False)
+    logging.info(f"All data written to {output_file}")
   else:
     logging.warning("No data to write.")
 
