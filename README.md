@@ -8,7 +8,7 @@ Container images are built by Github actions, and pushed to Github's container r
 ## Retrieval Container
 This container utilizes [Selenium](https://www.selenium.dev/) to automate browser authentication through PHO's login portal to WTISEN. Once authenticated, the browser session is passed to Python's [Requests](https://requests.readthedocs.io/en/latest/) library to download a report with the parameters specified to the container. The retrieved file is in CSV format. Data can be retrieved for up to 3 years at a time.
 
-To use, `WTISEN_USER` and `WTISEN_PASSWORD` environment variables must be set for the container (login email and password to WTISEN respectively). It is strongly suggested that secure key vault is utilized for this process and that credentials are rotated frequently. Additionally, the following arguments are required:
+Authentication credentials are provided through files specified as arguments. The following arguments are required:
 
 **1. `url`**  
 URL to access WTISEN  
@@ -30,9 +30,17 @@ The start date for the records you want to retrieve in the format of `YYYY-MM-DD
 The end date for the records you want to retrieve in the format of `YYYY-MM-DD`  
 **Example**: `2022-12-31`
 
-**6. `output`**  
+**6. `output_file`**  
 The filename where the output will be written in CSV format  
 **Example**: `wtisen.csv`
+
+**7. `username_file`**  
+Path to file containing the username (email) for WTISEN login  
+**Example**: `/path/to/username.txt`
+
+**8. `password_file`**  
+Path to file containing the password for WTISEN login  
+**Example**: `/path/to/password.txt`
 
 ## Processing Container
 This container utilizes [R](https://www.r-project.org/) to process and standardize CSV file retrieved in the previous container. The output is a [parquet file](https://parquet.apache.org/). This format preserves column type information which can simplify importing the data into other tools. Use of [renv](https://rstudio.github.io/renv/) ensures a reproducible environment.
