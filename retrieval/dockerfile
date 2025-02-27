@@ -3,8 +3,8 @@ FROM python:3.9-bullseye
 USER root
 
 # Specify versions of Firefox and geckodriver
-ARG firefox_ver=124.0.2
-ARG geckodriver_ver=0.34.0
+ARG firefox_ver=135.0.1
+ARG geckodriver_ver=0.36.0
 
 # Update apt-get
 RUN apt-get update
@@ -15,10 +15,10 @@ RUN apt-get install -y --no-install-recommends --no-install-suggests \
   # additional 'firefox-esl' dependencies which are not in 'depends' list
   libasound2 libxt6 libxtst6
 
-# Download and install Firefox
-RUN curl -fL -o /tmp/firefox.tar.bz2 \
-  https://ftp.mozilla.org/pub/firefox/releases/${firefox_ver}/linux-x86_64/en-GB/firefox-${firefox_ver}.tar.bz2 \
-  && tar -xjf /tmp/firefox.tar.bz2 -C /tmp/ \
+  # Download and install Firefox
+RUN curl -fL -o /tmp/firefox.tar.xz \
+  https://ftp.mozilla.org/pub/firefox/releases/${firefox_ver}/linux-x86_64/en-CA/firefox-${firefox_ver}.tar.xz \
+  && tar -xJf /tmp/firefox.tar.xz -C /tmp/ \
   && mv /tmp/firefox /opt/firefox \
   && ln -s /opt/firefox/firefox /usr/local/bin/firefox
  
