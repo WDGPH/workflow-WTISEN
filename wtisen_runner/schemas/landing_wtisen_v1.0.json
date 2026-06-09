@@ -1,0 +1,133 @@
+{
+  "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
+  "title": "landing_wtisen",
+  "description": "Normalized WTISEN landing CSV structure after source header normalization.",
+  "fieldsMatch": ["subset"],
+  "missingValues": [
+    "",
+    "NA",
+    "N/A",
+    "null",
+    "NaN"
+  ],
+  "fields": [
+    {
+      "name": "BARCODE",
+      "type": "string",
+      "description": "Source barcode identifier for the water sample.",
+      "constraints": {
+        "maxLength": 9
+      }
+    },
+    {
+      "name": "DATE_COLLECTED",
+      "type": "string",
+      "description": "Source collection timestamp token for the sample."
+    },
+    {
+      "name": "DATE_RECEIVED",
+      "type": "string",
+      "description": "Source received timestamp token for the sample."
+    },
+    {
+      "name": "DATE_RELEASED",
+      "type": "string",
+      "description": "Source release timestamp token for the sample result."
+    },
+    {
+      "name": "DATE_REPORTED",
+      "type": "string",
+      "description": "Source reporting timestamp token for the sample result."
+    },
+    {
+      "name": "LABORATORY",
+      "type": "string",
+      "description": "Source laboratory name or identifier."
+    },
+    {
+      "name": "PHONE",
+      "type": "string",
+      "description": "Source primary contact phone number."
+    },
+    {
+      "name": "ALT_PHONE",
+      "type": "string",
+      "description": "Source alternate contact phone number."
+    },
+    {
+      "name": "FIRST_NAME",
+      "type": "string",
+      "description": "Source first name associated with the sample."
+    },
+    {
+      "name": "LAST_NAME",
+      "type": "string",
+      "description": "Source last name associated with the sample."
+    },
+    {
+      "name": "ADDRESS",
+      "type": "string",
+      "description": "Source street address associated with the sample."
+    },
+    {
+      "name": "LOT_NUM",
+      "type": "string",
+      "description": "Source lot number value."
+    },
+    {
+      "name": "CONCESSION",
+      "type": "string",
+      "description": "Source concession value."
+    },
+    {
+      "name": "CITY",
+      "type": "string",
+      "description": "Source city value."
+    },
+    {
+      "name": "MUNICIPALITY",
+      "type": "string",
+      "description": "Source municipality value."
+    },
+    {
+      "name": "COUNTY",
+      "type": "string",
+      "description": "Source county value."
+    },
+    {
+      "name": "EMERGENCY_LOC_NO",
+      "type": "string",
+      "description": "Source emergency location number."
+    },
+    {
+      "name": "POSTAL",
+      "type": "string",
+      "description": "Source postal code value."
+    },
+    {
+      "name": "ENTRY",
+      "type": "string",
+      "description": "Source entry identifier before type normalization."
+    },
+    {
+      "name": "FORMATTED_ENTRY",
+      "type": "string",
+      "description": "Source formatted entry identifier value."
+    },
+    {
+      "name": "TOTAL_COLIFORM",
+      "type": "string",
+      "description": "Source total coliform result value."
+    },
+    {
+      "name": "E_COLI",
+      "type": "string",
+      "description": "Source E. coli result value."
+    },
+    {
+      "name": "REQ_LEGIBLE",
+      "type": "string",
+      "description": "Source requisition-legibility indicator value."
+    }
+  ]
+}
