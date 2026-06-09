@@ -1,0 +1,131 @@
+{
+  "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
+  "title": "processed_wtisen",
+  "description": "Normalized WTISEN test-result records used for Delta upsert in the curated zone.",
+  "fieldsMatch": ["exact"],
+  "missingValues": [""],
+  "fields": [
+    {
+      "name": "barcode",
+      "type": "string",
+      "description": "Barcode identifier for the submitted water sample.",
+      "constraints": {
+        "required": true,
+        "maxLength": 9
+      }
+    },
+    {
+      "name": "date_collected",
+      "type": "datetime",
+      "description": "Date and time when the sample was collected."
+    },
+    {
+      "name": "date_received",
+      "type": "datetime",
+      "description": "Date and time when the laboratory received the sample."
+    },
+    {
+      "name": "date_released",
+      "type": "datetime",
+      "description": "Date and time when the laboratory released the result."
+    },
+    {
+      "name": "date_reported",
+      "type": "datetime",
+      "description": "Date and time when the result was reported."
+    },
+    {
+      "name": "laboratory",
+      "type": "string",
+      "description": "Laboratory processing site name or identifier."
+    },
+    {
+      "name": "phone",
+      "type": "string",
+      "description": "Primary contact phone number associated with the submission."
+    },
+    {
+      "name": "alt_phone",
+      "type": "string",
+      "description": "Alternate contact phone number associated with the submission."
+    },
+    {
+      "name": "first_name",
+      "type": "string",
+      "description": "First name of the person associated with the sample."
+    },
+    {
+      "name": "last_name",
+      "type": "string",
+      "description": "Last name of the person associated with the sample."
+    },
+    {
+      "name": "address",
+      "type": "string",
+      "description": "Street address associated with the sample submission."
+    },
+    {
+      "name": "lot_num",
+      "type": "string",
+      "description": "Lot number provided in the submission details."
+    },
+    {
+      "name": "concession",
+      "type": "string",
+      "description": "Concession information provided for the sample location."
+    },
+    {
+      "name": "city",
+      "type": "string",
+      "description": "City name associated with the sample location."
+    },
+    {
+      "name": "municipality",
+      "type": "string",
+      "description": "Municipality associated with the sample location."
+    },
+    {
+      "name": "county",
+      "type": "string",
+      "description": "County associated with the sample location."
+    },
+    {
+      "name": "emergency_loc_no",
+      "type": "string",
+      "description": "Emergency location number captured in the WTISEN record."
+    },
+    {
+      "name": "postal",
+      "type": "string",
+      "description": "Normalized postal code associated with the sample location.",
+      "constraints": {
+        "maxLength": 6
+      }
+    },
+    {
+      "name": "entry",
+      "type": "integer",
+      "description": "Numeric WTISEN entry identifier."
+    },
+    {
+      "name": "formatted_entry",
+      "type": "string",
+      "description": "Formatted WTISEN entry identifier as supplied in the report."
+    },
+    {
+      "name": "total_coliform",
+      "type": "string",
+      "description": "Reported total coliform test result value."
+    },
+    {
+      "name": "e_coli",
+      "type": "string",
+      "description": "Reported E. coli test result value."
+    },
+    {
+      "name": "req_legible",
+      "type": "boolean",
+      "description": "Indicates whether the requisition text was legible."
+    }
+  ]
+}
