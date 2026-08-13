@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wtisen-runner"
+version = "0.1.0"
+description = "Standalone WTISEN runner without Kubeflow"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "PyYAML==6.0.2",
+  "polars==1.30.0",
+  "frictionless==5.18.1",
+  "playwright==1.59.0",
+]
+
+[project.scripts]
+wtisen-runner = "wtisen_runner.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "."}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["wtisen_runner*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]

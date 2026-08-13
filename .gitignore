@@ -1,0 +1,16 @@
+*.env
+*.csv
+*.parquet
+*.yaml
+!config/wtisen.example.yaml
+!.github/workflows/build-wtisen-runner.yaml
+*.json
+!wtisen_runner/schemas/landing_wtisen_v1.0.json
+!wtisen_runner/schemas/processed_wtisen_v2.0.json
+*.egg-info
+*.pyc
+__pycache__/
+build/
+.pytest_cache/
+.venv/
+uv.lock

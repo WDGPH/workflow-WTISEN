@@ -1,0 +1,179 @@
+name: Build WTISEN Runner Image
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "Dockerfile"
+      - "pyproject.toml"
+      - "README.md"
+      - "wtisen_runner/**"
+      - "config/**"
+      - "tests/**"
+      - ".github/workflows/build-wtisen-runner.yaml"
+  push:
+    branches:
+      - main
+    tags:
+      - "*"
+    paths:
+      - "Dockerfile"
+      - "pyproject.toml"
+      - "README.md"
+      - "wtisen_runner/**"
+      - "config/**"
+      - ".github/workflows/build-wtisen-runner.yaml"
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: wtisen-runner
+
+jobs:
+  test:
+    name: Python Tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install package and test dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install . pytest
+
+      - name: Run pytest
+        run: |
+          set -euo pipefail
+          pytest -q
+
+  build-and-smoke:
+    name: Build and Smoke Test
+    runs-on: ubuntu-latest
+    needs: test
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image for smoke test (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          load: true
+          tags: local/wtisen-runner:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test container entrypoint
+        run: |
+          set -euo pipefail
+          docker run --rm local/wtisen-runner:ci --help
+
+      - name: Smoke test determine stage in container
+        run: |
+          set -euo pipefail
+          tmpdir="$(mktemp -d)"
+          mkdir -p "${tmpdir}/data"
+          cat > "${tmpdir}/wtisen.yaml" <<'YAML'
+          config_version: 1
+          source:
+            url: "https://example.invalid"
+            report_id: "dummy"
+            phu_code: "<INSERT_PHU_CODE>"
+            landing_file_prefix: "wtisen"
+          auth:
+            username_env: "PHO_USERNAME"
+            password_env: "PHO_PASSWORD"
+          run:
+            default_start_date: "2008-01-01"
+            lookback_days: 3
+            archive_enabled: true
+            debug_sensitive_logging_enabled: false
+            json_logs: false
+            ignore_https_errors: false
+            login_timeout_ms: 30000
+            post_login_timeout_ms: 30000
+            report_viewer_timeout_ms: 120000
+            download_timeout_ms: 60000
+            download_retries: 2
+          storage:
+            local:
+              root_dir: "/data"
+              landing: "landing/wtisen"
+              processed: "processed/wtisen"
+              archive_landing: "archive/landing/wtisen"
+              archive_processed: "archive/processed/wtisen"
+              curated: "curated/wtisen/wtisen_curated_v2.0.parquet"
+          transform:
+            file_pattern: "*wtisen*.csv"
+          load:
+            merge_keys: [barcode, date_collected, date_received, date_released, date_reported]
+            file_pattern: "*_v2.0.parquet"
+          YAML
+
+          docker run --rm \
+            -v "${tmpdir}/wtisen.yaml:/config/wtisen.yaml:ro" \
+            -v "${tmpdir}/data:/data" \
+            local/wtisen-runner:ci determine --config /config/wtisen.yaml > "${tmpdir}/out.json"
+
+          grep -q '"stage":"determine"\|"stage": "determine"' "${tmpdir}/out.json"
+
+  publish:
+    name: Publish Image
+    runs-on: ubuntu-latest
+    needs: build-and-smoke
+    if: github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/${{ env.IMAGE_NAME }}
+          flavor: latest=false
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=main-
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
