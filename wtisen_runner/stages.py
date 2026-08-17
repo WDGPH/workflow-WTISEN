@@ -5,6 +5,7 @@ import io
 import json
 import logging
 import re
+import time
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -132,6 +133,28 @@ def extract_wtisen(
 
     files_written = 0
     total_rows = 0
+    recovery_metrics = {
+        "first_csv_504_count": 0,
+        "html_recovery_200_count": 0,
+        "second_csv_200_count": 0,
+        "csv_recovery_count": 0,
+        "csv_recovery_latency_ms_total": 0,
+    }
+    logging.info(
+        "WTISEN extractor config: download_retries=%s "
+        "report_viewer_timeout_ms=%s login_timeout_ms=%s "
+        "csv_direct_poll_max_attempts=%s csv_poll_request_timeout_ms=%s "
+        "csv_direct_poll_backoff_ms=%s csv_poll_warmup_on_first_transient=%s "
+        "csv_failure_probe_timeout_ms=%s",
+        config.run.download_retries,
+        config.run.report_viewer_timeout_ms,
+        config.run.login_timeout_ms,
+        config.run.csv_direct_poll_max_attempts,
+        config.run.csv_poll_request_timeout_ms,
+        config.run.csv_direct_poll_backoff_ms,
+        config.run.csv_poll_warmup_on_first_transient,
+        config.run.csv_failure_probe_timeout_ms,
+    )
 
     with sync_playwright() as p:
         browser = p.firefox.launch(headless=True)
@@ -235,6 +258,186 @@ def extract_wtisen(
                         button.click()
                         return label
                 return None
+
+            def format_response_body_snippet(response, max_chars: int) -> str:
+                body_snippet = re.sub(r"\s+", " ", response.text()).strip()
+                if len(body_snippet) > max_chars:
+                    body_snippet = f"{body_snippet[:max_chars]}... [truncated]"
+                return body_snippet
+
+            def build_warmup_url(download_url: str) -> str:
+                warmup_url = download_url
+                if "rs%3AFormat=CSV" in warmup_url:
+                    warmup_url = warmup_url.replace("rs%3AFormat=CSV", "rs%3AFormat=HTML4.0", 1)
+                elif "rs:Format=CSV" in warmup_url:
+                    warmup_url = warmup_url.replace("rs:Format=CSV", "rs:Format=HTML4.0", 1)
+                else:
+                    warmup_url = f"{warmup_url}&rs%3AFormat=HTML4.0"
+                if "rc%3AToolbar=" not in warmup_url and "rc:Toolbar=" not in warmup_url:
+                    warmup_url = f"{warmup_url}&rc%3AToolbar=false"
+                if "rc%3AParameters=" not in warmup_url and "rc:Parameters=" not in warmup_url:
+                    warmup_url = f"{warmup_url}&rc%3AParameters=false"
+                return warmup_url
+
+            def run_warmup_request(dl_url: str, batch_label: str, attempt: int, timeout_ms: int) -> int | None:
+                warmup_url = build_warmup_url(dl_url)
+                try:
+                    response = context.request.get(
+                        warmup_url,
+                        timeout=timeout_ms,
+                        fail_on_status_code=False,
+                    )
+                    body_snippet = format_response_body_snippet(response, max_chars=500)
+                    log_fn = logging.info if response.status < 400 else logging.warning
+                    log_fn(
+                        "Batch %s attempt %s warmup response: status=%s server=%r content-type=%r body_snippet=%r",
+                        batch_label,
+                        attempt,
+                        response.status,
+                        response.headers.get("server"),
+                        response.headers.get("content-type"),
+                        body_snippet,
+                    )
+                    warmup_content_type = (response.headers.get("content-type") or "").lower()
+                    warmup_is_html4 = (
+                        "rs%3AFormat=HTML4.0" in warmup_url or "rs:Format=HTML4.0" in warmup_url
+                    )
+                    if int(response.status) == 200 and warmup_is_html4 and "text/html" in warmup_content_type:
+                        recovery_metrics["html_recovery_200_count"] += 1
+                        logging.info(
+                            "WTISEN metric html_recovery_200_count incremented: %s",
+                            recovery_metrics["html_recovery_200_count"],
+                        )
+                    return int(response.status)
+                except Exception as err:
+                    logging.warning(
+                        "Batch %s attempt %s warmup request failed (continuing): %s: %s",
+                        batch_label,
+                        attempt,
+                        type(err).__name__,
+                        err,
+                    )
+                    return None
+
+            def fetch_csv_with_polling(dl_url: str, batch_label: str, attempt: int) -> bytes | None:
+                transient_statuses = {502, 503, 504}
+                warmup_used = False
+                first_csv_504_monotonic = None
+                for poll_idx in range(1, config.run.csv_direct_poll_max_attempts + 1):
+                    response = context.request.get(
+                        dl_url,
+                        timeout=config.run.csv_poll_request_timeout_ms,
+                        fail_on_status_code=False,
+                    )
+                    status = int(response.status)
+                    content_type = (response.headers.get("content-type") or "").lower()
+                    server = response.headers.get("server")
+
+                    if status == 200 and "text/csv" in content_type:
+                        csv_bytes = response.body()
+                        if first_csv_504_monotonic is not None:
+                            recovery_latency_ms = int(
+                                (time.monotonic() - first_csv_504_monotonic) * 1000
+                            )
+                            recovery_metrics["csv_recovery_count"] += 1
+                            recovery_metrics["csv_recovery_latency_ms_total"] += recovery_latency_ms
+                            if poll_idx == 2:
+                                recovery_metrics["second_csv_200_count"] += 1
+                            logging.info(
+                                "WTISEN metric csv recovery observed: poll=%s latency_ms=%s csv_recovery_count=%s second_csv_200_count=%s",
+                                poll_idx,
+                                recovery_latency_ms,
+                                recovery_metrics["csv_recovery_count"],
+                                recovery_metrics["second_csv_200_count"],
+                            )
+                        logging.info(
+                            "Batch %s attempt %s CSV direct request succeeded on poll %s/%s (%s bytes).",
+                            batch_label,
+                            attempt,
+                            poll_idx,
+                            config.run.csv_direct_poll_max_attempts,
+                            len(csv_bytes),
+                        )
+                        return csv_bytes
+
+                    body_snippet = format_response_body_snippet(response, max_chars=800)
+                    if status in transient_statuses:
+                        if status == 504 and poll_idx == 1 and first_csv_504_monotonic is None:
+                            first_csv_504_monotonic = time.monotonic()
+                            recovery_metrics["first_csv_504_count"] += 1
+                            logging.info(
+                                "WTISEN metric first_csv_504_count incremented: %s",
+                                recovery_metrics["first_csv_504_count"],
+                            )
+                        logging.warning(
+                            "Batch %s attempt %s CSV poll %s/%s transient status=%s server=%r content-type=%r body_snippet=%r",
+                            batch_label,
+                            attempt,
+                            poll_idx,
+                            config.run.csv_direct_poll_max_attempts,
+                            status,
+                            server,
+                            content_type,
+                            body_snippet,
+                        )
+                        if config.run.csv_poll_warmup_on_first_transient and not warmup_used:
+                            warmup_used = True
+                            run_warmup_request(
+                                dl_url=dl_url,
+                                batch_label=batch_label,
+                                attempt=attempt,
+                                timeout_ms=config.run.csv_poll_request_timeout_ms,
+                            )
+                        if poll_idx < config.run.csv_direct_poll_max_attempts:
+                            backoff_ms = config.run.csv_direct_poll_backoff_ms[
+                                min(poll_idx - 1, len(config.run.csv_direct_poll_backoff_ms) - 1)
+                            ]
+                            page.wait_for_timeout(backoff_ms)
+                            continue
+                        return None
+
+                    logging.warning(
+                        "Batch %s attempt %s CSV poll %s/%s non-transient status=%s server=%r content-type=%r body_snippet=%r",
+                        batch_label,
+                        attempt,
+                        poll_idx,
+                        config.run.csv_direct_poll_max_attempts,
+                        status,
+                        server,
+                        content_type,
+                        body_snippet,
+                    )
+                    return None
+
+                return None
+
+            def probe_csv_failure(dl_url: str, batch_label: str, attempt: int, reason: str) -> None:
+                try:
+                    response = context.request.get(
+                        dl_url,
+                        timeout=config.run.csv_failure_probe_timeout_ms,
+                        fail_on_status_code=False,
+                    )
+                    body_snippet = format_response_body_snippet(response, max_chars=800)
+                    logging.warning(
+                        "Batch %s attempt %s CSV failure probe (%s): status=%s server=%r content-type=%r body_snippet=%r",
+                        batch_label,
+                        attempt,
+                        reason,
+                        response.status,
+                        response.headers.get("server"),
+                        response.headers.get("content-type"),
+                        body_snippet,
+                    )
+                except Exception as err:
+                    logging.warning(
+                        "Batch %s attempt %s CSV failure probe (%s) did not complete: %s: %s",
+                        batch_label,
+                        attempt,
+                        reason,
+                        type(err).__name__,
+                        err,
+                    )
 
             def cleanup_session() -> None:
                 if page is None or context is None:
@@ -340,26 +543,43 @@ def extract_wtisen(
                 log_page_state_debug(f"{stage} report viewer")
                 page.wait_for_timeout(2000)
 
-            def download_once(dl_url: str, tmp_csv_path: Path, batch_label: str) -> bytes:
+            def download_once(dl_url: str, batch_label: str) -> bytes:
                 for attempt in range(1, config.run.download_retries + 1):
                     try:
-                        with page.expect_download(timeout=config.run.download_timeout_ms) as info:
-                            try:
-                                page.goto(dl_url, wait_until="commit", timeout=config.run.download_timeout_ms)
-                            except Exception as exc:
-                                if "Download is starting" not in str(exc):
-                                    raise
-                        download = info.value
-                        download.save_as(str(tmp_csv_path))
-                        data = tmp_csv_path.read_bytes()
-                        tmp_csv_path.unlink(missing_ok=True)
-                        return data
+                        csv_bytes = fetch_csv_with_polling(
+                            dl_url=dl_url,
+                            batch_label=batch_label,
+                            attempt=attempt,
+                        )
+                        if csv_bytes is not None:
+                            logging.info(
+                                "Batch %s attempt %s CSV download succeeded (%s bytes).",
+                                batch_label,
+                                attempt,
+                                len(csv_bytes),
+                            )
+                            return csv_bytes
+                        probe_csv_failure(
+                            dl_url=dl_url,
+                            batch_label=batch_label,
+                            attempt=attempt,
+                            reason="CSV_POLL_EXHAUSTED",
+                        )
+                        raise RuntimeError(
+                            f"WTISEN_DOWNLOAD_FAILURE category=CSV_POLL_EXHAUSTED batch={batch_label}"
+                        )
                     except PlaywrightTimeoutError as exc:
                         log_failure_page_state_debug(
                             f"Batch {batch_label} retry download timeout attempt {attempt}"
                         )
                         if attempt >= config.run.download_retries:
                             raise RuntimeError("WTISEN_DOWNLOAD_FAILURE category=DOWNLOAD_TIMEOUT") from exc
+                    except RuntimeError:
+                        log_failure_page_state_debug(
+                            f"Batch {batch_label} retry download failure attempt {attempt}"
+                        )
+                        if attempt >= config.run.download_retries:
+                            raise
                     except Exception as exc:
                         log_failure_page_state_debug(
                             f"Batch {batch_label} retry download failure attempt {attempt}"
@@ -392,10 +612,8 @@ def extract_wtisen(
                     f"{urlencode(query)}"
                 )
 
-                tmp = storage.resolve(config.storage.landing) / f"tmp_{w_start}_{w_end}.csv"
-                tmp.parent.mkdir(parents=True, exist_ok=True)
                 batch_label = f"{w_start}..{w_end}"
-                data = download_once(dl_url=dl_url, tmp_csv_path=tmp, batch_label=batch_label)
+                data = download_once(dl_url=dl_url, batch_label=batch_label)
 
                 rows = count_data_rows(data)
                 if rows == 0:
@@ -420,6 +638,23 @@ def extract_wtisen(
                 except Exception:
                     logging.warning("WTISEN_SESSION_CLEANUP category=COOKIE_CLEAR_UNSUCCESSFUL")
             browser.close()
+
+    avg_recovery_latency_ms = 0
+    if recovery_metrics["csv_recovery_count"] > 0:
+        avg_recovery_latency_ms = int(
+            recovery_metrics["csv_recovery_latency_ms_total"] / recovery_metrics["csv_recovery_count"]
+        )
+    logging.info(
+        "WTISEN recovery metrics: first_csv_504_count=%s html_recovery_200_count=%s "
+        "second_csv_200_count=%s csv_recovery_count=%s "
+        "csv_recovery_latency_ms_total=%s csv_recovery_latency_ms_avg=%s",
+        recovery_metrics["first_csv_504_count"],
+        recovery_metrics["html_recovery_200_count"],
+        recovery_metrics["second_csv_200_count"],
+        recovery_metrics["csv_recovery_count"],
+        recovery_metrics["csv_recovery_latency_ms_total"],
+        avg_recovery_latency_ms,
+    )
 
     if files_written == 0:
         return 0

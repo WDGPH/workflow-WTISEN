@@ -94,7 +94,7 @@ jobs:
           source:
             url: "https://example.invalid"
             report_id: "dummy"
-            phu_code: "<INSERT_PHU_CODE>"
+            phu_code: "0000"
             landing_file_prefix: "wtisen"
           auth:
             username_env: "PHO_USERNAME"
