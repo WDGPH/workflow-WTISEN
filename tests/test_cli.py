@@ -15,7 +15,7 @@ config_version: 1
 source:
   url: "https://example"
   report_id: "r"
-  phu_code: "<INSERT_PHU_CODE>"
+  phu_code: "0000"
   landing_file_prefix: "wtisen"
 auth:
   username_env: "PHO_USERNAME"
@@ -32,6 +32,11 @@ run:
   report_viewer_timeout_ms: 120000
   download_timeout_ms: 60000
   download_retries: 2
+  csv_direct_poll_max_attempts: 3
+  csv_poll_request_timeout_ms: 25000
+  csv_direct_poll_backoff_ms: [3000, 7000, 12000]
+  csv_poll_warmup_on_first_transient: true
+  csv_failure_probe_timeout_ms: 30000
 storage:
   local:
     root_dir: "/tmp"

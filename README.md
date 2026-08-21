@@ -134,6 +134,11 @@ data:
       report_viewer_timeout_ms: 120000
       download_timeout_ms: 60000
       download_retries: 2
+      csv_direct_poll_max_attempts: 3
+      csv_poll_request_timeout_ms: 25000
+      csv_direct_poll_backoff_ms: [3000, 7000, 12000]
+      csv_poll_warmup_on_first_transient: true
+      csv_failure_probe_timeout_ms: 30000
     storage:
       local:
         root_dir: "/data"
@@ -237,8 +242,14 @@ Required groups:
     - `login_timeout_ms`
     - `post_login_timeout_ms`
     - `report_viewer_timeout_ms`
-    - `download_timeout_ms`
+    - `download_timeout_ms` (retained for config compatibility; no longer used for the CSV download itself)
     - `download_retries`
+  - includes CSV polling/recovery knobs:
+    - `csv_direct_poll_max_attempts` — maximum HTTP poll attempts per batch before declaring failure (default: `3`)
+    - `csv_poll_request_timeout_ms` — per-request HTTP timeout used for CSV polls and warmup requests (default: `25000`)
+    - `csv_direct_poll_backoff_ms` — list of wait times in ms between successive poll attempts on transient errors (default: `[3000, 7000, 12000]`)
+    - `csv_poll_warmup_on_first_transient` — when `true`, issues a HTML-format warmup request to the report server on the first transient error (502/503/504) before the next CSV poll (default: `true`)
+    - `csv_failure_probe_timeout_ms` — timeout for the diagnostic probe request issued when all polls are exhausted (default: `30000`)
 - `storage.local`: root + landing/processed/archive/curated paths
 - `transform`: landing file pattern
 - `load`: merge keys and processed file pattern
@@ -267,6 +278,7 @@ Stage behavior:
 - `extract`:
   - Writes WTISEN CSV files into `landing`.
   - Empty downloads (no data rows) are not written.
+  - Uses direct HTTP polling via `context.request.get()` (authenticated via the browser session cookie) rather than Playwright download events. This enables transient-error recovery: on 502/503/504 responses the extractor retries with configurable backoff, optionally issuing a HTML-format warmup request to the report server before re-polling. A diagnostic probe request is sent when all poll attempts are exhausted. Recovery metrics are logged at the end of extraction.
 - `transform`:
   - Reads matching CSV files from `landing`.
   - Writes processed parquet files to `processed`.

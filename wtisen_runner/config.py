@@ -33,6 +33,11 @@ class RunConfig:
     report_viewer_timeout_ms: int
     download_timeout_ms: int
     download_retries: int
+    csv_direct_poll_max_attempts: int
+    csv_poll_request_timeout_ms: int
+    csv_direct_poll_backoff_ms: list[int]
+    csv_poll_warmup_on_first_transient: bool
+    csv_failure_probe_timeout_ms: int
 
 
 @dataclass(frozen=True)
@@ -71,6 +76,15 @@ def _require_string(obj: dict, key: str, label: str | None = None) -> str:
     value = obj.get(key)
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{label or key} must be a non-empty string")
+    return value
+
+
+def _require_int_list(obj: dict, key: str, label: str | None = None) -> list[int]:
+    value = obj.get(key)
+    if not isinstance(value, list) or not all(isinstance(v, int) for v in value):
+        raise ValueError(f"{label or key} must be a list of integers")
+    if not value:
+        raise ValueError(f"{label or key} must be a non-empty list")
     return value
 
 
@@ -150,6 +164,32 @@ def load_config(path: str) -> WtisenConfig:
             ),
             download_timeout_ms=_require_int(run, "download_timeout_ms", label="run.download_timeout_ms"),
             download_retries=_require_int(run, "download_retries", label="run.download_retries"),
+            csv_direct_poll_max_attempts=_require_int(
+                run,
+                "csv_direct_poll_max_attempts",
+                label="run.csv_direct_poll_max_attempts",
+            ),
+            csv_poll_request_timeout_ms=_require_int(
+                run,
+                "csv_poll_request_timeout_ms",
+                label="run.csv_poll_request_timeout_ms",
+            ),
+            csv_direct_poll_backoff_ms=_require_int_list(
+                run,
+                "csv_direct_poll_backoff_ms",
+                label="run.csv_direct_poll_backoff_ms",
+            ),
+            csv_poll_warmup_on_first_transient=_require_bool(
+                run,
+                "csv_poll_warmup_on_first_transient",
+                default=True,
+                label="run.csv_poll_warmup_on_first_transient",
+            ),
+            csv_failure_probe_timeout_ms=_require_int(
+                run,
+                "csv_failure_probe_timeout_ms",
+                label="run.csv_failure_probe_timeout_ms",
+            ),
         ),
         storage=LocalStorageConfig(
             root_dir=_require_string(storage, "root_dir", label="storage.local.root_dir"),
@@ -186,6 +226,12 @@ def load_config(path: str) -> WtisenConfig:
         raise ValueError("run.download_timeout_ms must be > 0")
     if cfg.run.download_retries < 1:
         raise ValueError("run.download_retries must be >= 1")
+    if cfg.run.csv_direct_poll_max_attempts < 1:
+        raise ValueError("run.csv_direct_poll_max_attempts must be >= 1")
+    if cfg.run.csv_poll_request_timeout_ms <= 0:
+        raise ValueError("run.csv_poll_request_timeout_ms must be > 0")
+    if cfg.run.csv_failure_probe_timeout_ms <= 0:
+        raise ValueError("run.csv_failure_probe_timeout_ms must be > 0")
     if not cfg.load.merge_keys or not all(isinstance(k, str) for k in cfg.load.merge_keys):
         raise ValueError("load.merge_keys must be a non-empty list of strings")
     return cfg
