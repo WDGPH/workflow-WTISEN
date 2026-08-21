@@ -244,7 +244,7 @@ Required groups:
     - `report_viewer_timeout_ms`
     - `download_timeout_ms` (retained for config compatibility; no longer used for the CSV download itself)
     - `download_retries`
-  - includes CSV polling/recovery knobs (ported from the Kubeflow WTISEN component):
+  - includes CSV polling/recovery knobs:
     - `csv_direct_poll_max_attempts` — maximum HTTP poll attempts per batch before declaring failure (default: `3`)
     - `csv_poll_request_timeout_ms` — per-request HTTP timeout used for CSV polls and warmup requests (default: `25000`)
     - `csv_direct_poll_backoff_ms` — list of wait times in ms between successive poll attempts on transient errors (default: `[3000, 7000, 12000]`)
